@@ -2,24 +2,18 @@ name: Gitleaks Secret Scan
 
 on:
   push:
+    branches: ['**']  # all branches
   pull_request:
+    branches: ['**']  # all PRs
 
 jobs:
-  gitleaks-scan:
-    name: Run Gitleaks to detect secrets
+  gitleaks:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Run Gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
+      - uses: actions/checkout@v4
         with:
-          args: detect --source . --verbose --redact
-
-      - name: Fail if secrets found
-        if: failure()
-        run: |
-          echo "❌ Secret leak detected by Gitleaks! Please remove secrets before pushing."
-          exit 1
+          fetch-depth: 0   # scan full history
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
