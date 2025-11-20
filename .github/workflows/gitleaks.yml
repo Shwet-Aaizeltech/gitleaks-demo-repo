@@ -2,15 +2,15 @@ name: Gitleaks Secret Scan
 
 on:
   push:
-    branches: ['**']          # all branches
+    branches: ['**']
   pull_request:
     branches: ['**']
-  pull_request_target:
+  pull_request_target:  # Protects against fork PRs
     types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
-  security-events: write
+  security-events: write  # For SARIF upload to Security tab
 
 jobs:
   gitleaks:
@@ -20,17 +20,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # scan full history
+          fetch-depth: 0  # Scans full commit history
 
       - name: Run Gitleaks
+        id: gitleaks  # For referencing in later steps
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          fail: true      # fail the job if secrets are found
+          GITLEAKS_EXIT_CODE: 1  # Fail the step on leaks (non-zero exit)
+          # Optional: GITLEAKS_CONFIG: .gitleaks.toml  # If you have a custom config
 
-      - name: Upload SARIF result
+      # Add job summary for visibility (shows leaks in GitHub UI)
+      - name: Summarize Gitleaks results
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        run: |
+          if [ -f results.sarif ]; then
+            echo "### Gitleaks Scan Results" >> $GITHUB_STEP_SUMMARY
+            echo "- **Leaks Found**: $(jq '.runs[0].results | length' results.sarif || echo "Unknown")" >> $GITHUB_STEP_SUMMARY
+            echo "- Download [full report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) for details." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### No leaks detected! ✅" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Upload SARIF to GitHub Security tab
+      - name: Upload SARIF results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3  # Note: v4 coming soon, but v3 works
         with:
-          sarif_file: gitleaks.sarif
+          sarif_file: results.sarif  # Fixed: Matches action's output filename
