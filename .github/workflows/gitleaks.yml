@@ -1,50 +1,29 @@
-name: Gitleaks Secret Scan
+name: Block Secrets Leak
 
 on:
   push:
-    branches: ['**']
+    branches: ['**']       # trigger on all branches
   pull_request:
-    branches: ['**']
-  pull_request_target:  # Protects against fork PRs
-    types: [opened, synchronize, reopened]
+    branches: ['**']       # trigger on all PRs
 
 permissions:
   contents: read
-  security-events: write  # For SARIF upload to Security tab
+  security-events: write   # allows uploading security scan results
 
 jobs:
-  gitleaks:
-    name: Scan for secrets with Gitleaks
+  gitleaks-block:
+    name: Gitleaks - Block if secrets found
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Scans full commit history
+          fetch-depth: 0   # scan entire git history
 
-      - name: Run Gitleaks
-        id: gitleaks  # For referencing in later steps
+      - name: Gitleaks Detect & Fail
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_EXIT_CODE: 1  # Fail the step on leaks (non-zero exit)
-          # Optional: GITLEAKS_CONFIG: .gitleaks.toml  # If you have a custom config
-
-      # Add job summary for visibility (shows leaks in GitHub UI)
-      - name: Summarize Gitleaks results
-        if: always()
-        run: |
-          if [ -f results.sarif ]; then
-            echo "### Gitleaks Scan Results" >> $GITHUB_STEP_SUMMARY
-            echo "- **Leaks Found**: $(jq '.runs[0].results | length' results.sarif || echo "Unknown")" >> $GITHUB_STEP_SUMMARY
-            echo "- Download [full report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) for details." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### No leaks detected! ✅" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      # Upload SARIF to GitHub Security tab
-      - name: Upload SARIF results
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3  # Note: v4 coming soon, but v3 works
         with:
-          sarif_file: results.sarif  # Fixed: Matches action's output filename
+          fail: true       # critical: fail pipeline if secrets found
