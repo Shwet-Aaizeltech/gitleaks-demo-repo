@@ -2,18 +2,35 @@ name: Gitleaks Secret Scan
 
 on:
   push:
-    branches: ['**']  # all branches
+    branches: ['**']          # all branches
   pull_request:
-    branches: ['**']  # all PRs
+    branches: ['**']
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  security-events: write
 
 jobs:
   gitleaks:
+    name: Scan for secrets with Gitleaks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0   # scan full history
+
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          fail: true      # fail the job if secrets are found
+
+      - name: Upload SARIF result
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
